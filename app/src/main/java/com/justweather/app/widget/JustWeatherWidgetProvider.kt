@@ -63,7 +63,7 @@ class JustWeatherWidgetProvider : AppWidgetProvider() {
                 appWidgetIds.forEach { id ->
                     val options = appWidgetManager.getAppWidgetOptions(id)
                     val views = if (isWideWidget(options)) {
-                        buildWideViews(context, settings.locationDisplay, weather, forecast)
+                    buildWideViews(context, settings.locationDisplay, weather, forecast)
                     } else {
                         buildCompactViews(context, settings.locationDisplay, weather, forecast, settings.useFahrenheit)
                     }
@@ -80,8 +80,11 @@ class JustWeatherWidgetProvider : AppWidgetProvider() {
             useFahrenheit: Boolean,
         ): RemoteViews {
             return RemoteViews(context.packageName, R.layout.widget_just_weather).apply {
+                val backgroundArt = conditionBackgroundArtRes(weather?.weatherCode, weather?.windSpeedMetersPerSecond)
+                val backgroundScene = conditionBackgroundSceneRes(weather?.weatherCode, weather?.windSpeedMetersPerSecond)
+                setImageViewResource(R.id.widget_watermark_icon, backgroundArt)
+                setInt(R.id.widget_root, "setBackgroundResource", backgroundScene)
                 setTextViewText(R.id.widget_location, locationDisplay)
-                setImageViewResource(R.id.widget_condition_icon, weatherIconRes(weather?.weatherCode))
                 setTextViewText(
                     R.id.widget_temp,
                     weather?.tempCelsius?.let { formatTemp(it, useFahrenheit) } ?: "--",
@@ -111,7 +114,10 @@ class JustWeatherWidgetProvider : AppWidgetProvider() {
             forecast: List<ForecastDayEntity>,
         ): RemoteViews {
             return RemoteViews(context.packageName, R.layout.widget_just_weather_wide).apply {
-                setImageViewResource(R.id.widget_wide_condition_icon, weatherIconRes(weather?.weatherCode))
+                val backgroundArt = conditionBackgroundArtRes(weather?.weatherCode, weather?.windSpeedMetersPerSecond)
+                val backgroundScene = conditionBackgroundSceneRes(weather?.weatherCode, weather?.windSpeedMetersPerSecond)
+                setImageViewResource(R.id.widget_wide_watermark_icon, backgroundArt)
+                setInt(R.id.widget_wide_root, "setBackgroundResource", backgroundScene)
                 setTextViewText(R.id.widget_wide_location, locationDisplay)
                 setTextViewText(
                     R.id.widget_wide_temp,
@@ -161,6 +167,41 @@ class JustWeatherWidgetProvider : AppWidgetProvider() {
                 71, 73, 75, 77, 85, 86 -> R.drawable.ic_weather_snow
                 95, 96, 99 -> R.drawable.ic_weather_storm
                 else -> R.drawable.ic_weather_unknown
+            }
+        }
+
+        private fun conditionIconRes(weatherCode: Int?, windSpeedMetersPerSecond: Double?): Int {
+            if ((windSpeedMetersPerSecond ?: 0.0) >= 10.0) {
+                return R.drawable.ic_weather_windy
+            }
+            return weatherIconRes(weatherCode)
+        }
+
+        private fun conditionBackgroundArtRes(weatherCode: Int?, windSpeedMetersPerSecond: Double?): Int {
+            if ((windSpeedMetersPerSecond ?: 0.0) >= 10.0) {
+                return R.drawable.ic_weather_windy
+            }
+            return when (weatherCode) {
+                0 -> R.drawable.ic_weather_clear
+                1, 2, 3 -> R.drawable.ic_weather_cloudy
+                45, 48 -> R.drawable.ic_weather_fog
+                51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82 -> R.drawable.ic_weather_rain
+                71, 73, 75, 77, 85, 86 -> R.drawable.ic_weather_snow
+                95, 96, 99 -> R.drawable.ic_weather_storm
+                else -> R.drawable.ic_weather_unknown
+            }
+        }
+
+        private fun conditionBackgroundSceneRes(weatherCode: Int?, windSpeedMetersPerSecond: Double?): Int {
+            if ((windSpeedMetersPerSecond ?: 0.0) >= 10.0) return R.drawable.widget_scene_windy
+            return when (weatherCode) {
+                0 -> R.drawable.widget_scene_clear
+                1, 2, 3 -> R.drawable.widget_scene_cloudy
+                45, 48 -> R.drawable.widget_scene_fog
+                51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82 -> R.drawable.widget_scene_rain
+                71, 73, 75, 77, 85, 86 -> R.drawable.widget_scene_snow
+                95, 96, 99 -> R.drawable.widget_scene_storm
+                else -> R.drawable.widget_scene_unknown
             }
         }
 

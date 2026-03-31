@@ -1,21 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_wide_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_card_background_wide"
-    android:gravity="center_vertical"
-    android:orientation="horizontal"
-    android:paddingHorizontal="16dp"
-    android:paddingVertical="12dp">
+    android:background="@drawable/widget_card_background_wide">
 
     <ImageView
-        android:id="@+id/widget_wide_condition_icon"
-        android:layout_width="22dp"
-        android:layout_height="22dp"
-        android:layout_marginEnd="10dp"
+        android:id="@+id/widget_wide_watermark_icon"
+        android:layout_width="440dp"
+        android:layout_height="440dp"
+        android:layout_gravity="center"
+        android:alpha="0.22"
         android:contentDescription="@string/widget_description"
-        android:tint="#EEF6FF" />
+        android:scaleType="centerInside"
+        android:tint="#FFFFFF" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="12dp">
 
     <LinearLayout
         android:layout_width="0dp"
@@ -50,5 +56,7 @@
         android:textSize="34sp"
         android:textStyle="bold" />
 
-</LinearLayout>
+    </LinearLayout>
+
+</FrameLayout>
 

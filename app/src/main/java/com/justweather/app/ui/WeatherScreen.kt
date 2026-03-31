@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,18 +39,27 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.collect
@@ -141,8 +151,7 @@ private fun WeatherContent(
     forecast: List<ForecastDayEntity>,
     settings: UiSettings,
 ) {
-    val currentCondition = weather?.weatherCode?.let(::decodeWeatherCode)
-        ?: WeatherConditionUi("Unknown", Icons.Default.FilterDrama, Color(0xFFF2F6FC))
+    val currentCondition = resolveCondition(weather)
     val backgroundColor by animateColorAsState(
         targetValue = currentCondition.backgroundColor,
         label = "weather-bg",
@@ -156,19 +165,30 @@ private fun WeatherContent(
         String.format("%.1f °C", weather.tempCelsius)
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(backgroundColor)
-            .padding(16.dp),
+            .background(backgroundColor),
     ) {
+        AnimatedWeatherScene(
+            sceneType = currentCondition.sceneType,
+            modifier = Modifier
+                .fillMaxSize()
+                .alpha(0.28f),
+        )
+
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            verticalArrangement = Arrangement.Top,
-            horizontalAlignment = Alignment.Start,
+                .fillMaxSize()
+                .padding(16.dp),
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                verticalArrangement = Arrangement.Top,
+                horizontalAlignment = Alignment.Start,
+            ) {
             Text(
                 text = "Current Conditions",
                 style = MaterialTheme.typography.headlineMedium,
@@ -200,7 +220,7 @@ private fun WeatherContent(
                 style = MaterialTheme.typography.titleMedium,
                 textAlign = TextAlign.Start,
             )
-            MetricLine(label = "Temp", value = tempText)
+            MetricLine(label = "Temp", value = tempText, modifier = Modifier.padding(top = 8.dp))
             MetricLine(
                 label = "Humidity",
                 value = weather?.humidityPercent?.let { "$it%" } ?: "—",
@@ -209,39 +229,33 @@ private fun WeatherContent(
                 label = "Wind Speed",
                 value = weather?.windSpeedMetersPerSecond?.let { formatWindSpeed(it, settings.useFahrenheit) } ?: "—",
             )
-            Text(
-                text = "Last Updated",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                modifier = Modifier.padding(top = 16.dp),
-            )
-            Text(
-                text = formatLastUpdated(weather?.updatedAtEpochMs),
-                style = MaterialTheme.typography.bodyLarge,
-                textAlign = TextAlign.Center,
+            MetricLine(
+                label = "Last Updated",
+                value = formatLastUpdated(weather?.updatedAtEpochMs),
             )
         }
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-        ) {
-            Text(
-                text = "7-Day Forecast",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
-            if (forecast.isEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            ) {
                 Text(
-                    text = "No cached forecast yet.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    text = "7-Day Forecast",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 8.dp),
                 )
-            } else {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(forecast, key = { "${it.cityQuery}-${it.dayIndex}" }) { day ->
-                        ForecastCard(day = day, useFahrenheit = settings.useFahrenheit)
+                if (forecast.isEmpty()) {
+                    Text(
+                        text = "No cached forecast yet.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    )
+                } else {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(forecast, key = { "${it.cityQuery}-${it.dayIndex}" }) { day ->
+                            ForecastCard(day = day, useFahrenheit = settings.useFahrenheit)
+                        }
                     }
                 }
             }
@@ -310,23 +324,107 @@ private data class WeatherConditionUi(
     val label: String,
     val icon: ImageVector,
     val backgroundColor: Color,
+    val sceneType: WeatherSceneType,
 )
+
+private enum class WeatherSceneType {
+    CLEAR, CLOUDY, FOG, RAIN, SNOW, STORM, WINDY, UNKNOWN
+}
+
+private fun resolveCondition(weather: WeatherEntity?): WeatherConditionUi {
+    if (weather == null) {
+        return WeatherConditionUi(
+            label = "Unknown",
+            icon = Icons.Default.FilterDrama,
+            backgroundColor = Color(0xFFF2F6FC),
+            sceneType = WeatherSceneType.UNKNOWN,
+        )
+    }
+
+    if (weather.windSpeedMetersPerSecond >= 10.0) {
+        return WeatherConditionUi(
+            label = "Windy",
+            icon = Icons.Default.Cloud,
+            backgroundColor = Color(0xFFE3EAF3),
+            sceneType = WeatherSceneType.WINDY,
+        )
+    }
+
+    return decodeWeatherCode(weather.weatherCode)
+}
 
 private fun decodeWeatherCode(code: Int): WeatherConditionUi {
     return when (code) {
-        0 -> WeatherConditionUi("Clear Sky", Icons.Default.WbSunny, Color(0xFFE8F4FF))
-        1, 2 -> WeatherConditionUi("Partly Cloudy", Icons.Default.Cloud, Color(0xFFEFF4FA))
-        3 -> WeatherConditionUi("Overcast", Icons.Default.Cloud, Color(0xFFE1E5EC))
-        45, 48 -> WeatherConditionUi("Foggy", Icons.Default.FilterDrama, Color(0xFFE7EAF0))
-        51, 53, 55, 56, 57 -> WeatherConditionUi("Drizzle", Icons.Default.Grain, Color(0xFFE5EDF7))
-        61 -> WeatherConditionUi("Slight Rain", Icons.Default.Grain, Color(0xFFDDE9F7))
-        63, 65, 66, 67 -> WeatherConditionUi("Rain", Icons.Default.Grain, Color(0xFFD7E5F6))
-        71, 73, 75, 77 -> WeatherConditionUi("Snow", Icons.Default.Cloud, Color(0xFFEAF1FA))
-        80, 81, 82 -> WeatherConditionUi("Rain Showers", Icons.Default.Grain, Color(0xFFD8E6F8))
-        85, 86 -> WeatherConditionUi("Snow Showers", Icons.Default.Cloud, Color(0xFFEAF1FA))
-        95 -> WeatherConditionUi("Thunderstorm", Icons.Default.Thunderstorm, Color(0xFF312E5A))
-        96, 99 -> WeatherConditionUi("Stormy", Icons.Default.Bolt, Color(0xFF2B2956))
-        else -> WeatherConditionUi("Unknown", Icons.Default.FilterDrama, Color(0xFFF2F6FC))
+        0 -> WeatherConditionUi("Clear Sky", Icons.Default.WbSunny, Color(0xFFE8F4FF), WeatherSceneType.CLEAR)
+        1, 2 -> WeatherConditionUi("Partly Cloudy", Icons.Default.Cloud, Color(0xFFEFF4FA), WeatherSceneType.CLOUDY)
+        3 -> WeatherConditionUi("Overcast", Icons.Default.Cloud, Color(0xFFE1E5EC), WeatherSceneType.CLOUDY)
+        45, 48 -> WeatherConditionUi("Foggy", Icons.Default.FilterDrama, Color(0xFFE7EAF0), WeatherSceneType.FOG)
+        51, 53, 55, 56, 57 -> WeatherConditionUi("Drizzle", Icons.Default.Grain, Color(0xFFE5EDF7), WeatherSceneType.RAIN)
+        61 -> WeatherConditionUi("Slight Rain", Icons.Default.Grain, Color(0xFFDDE9F7), WeatherSceneType.RAIN)
+        63, 65, 66, 67 -> WeatherConditionUi("Rain", Icons.Default.Grain, Color(0xFFD7E5F6), WeatherSceneType.RAIN)
+        71, 73, 75, 77 -> WeatherConditionUi("Snow", Icons.Default.Cloud, Color(0xFFEAF1FA), WeatherSceneType.SNOW)
+        80, 81, 82 -> WeatherConditionUi("Rain Showers", Icons.Default.Grain, Color(0xFFD8E6F8), WeatherSceneType.RAIN)
+        85, 86 -> WeatherConditionUi("Snow Showers", Icons.Default.Cloud, Color(0xFFEAF1FA), WeatherSceneType.SNOW)
+        95 -> WeatherConditionUi("Thunderstorm", Icons.Default.Thunderstorm, Color(0xFF312E5A), WeatherSceneType.STORM)
+        96, 99 -> WeatherConditionUi("Stormy", Icons.Default.Bolt, Color(0xFF2B2956), WeatherSceneType.STORM)
+        else -> WeatherConditionUi("Unknown", Icons.Default.FilterDrama, Color(0xFFF2F6FC), WeatherSceneType.UNKNOWN)
+    }
+}
+
+@Composable
+private fun AnimatedWeatherScene(sceneType: WeatherSceneType, modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "weather-scene")
+    val drift by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(10000), RepeatMode.Reverse),
+        label = "drift",
+    )
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        when (sceneType) {
+            WeatherSceneType.CLEAR -> {
+                drawCircle(Color(0xFFFFD36E), radius = h * 0.22f, center = Offset(w * (0.75f + 0.05f * drift), h * 0.25f))
+            }
+            WeatherSceneType.CLOUDY, WeatherSceneType.FOG, WeatherSceneType.UNKNOWN -> {
+                drawCircle(Color(0xFFB7C3D6), radius = h * 0.22f, center = Offset(w * (0.35f + 0.08f * drift), h * 0.32f))
+                drawCircle(Color(0xFFA4B2C8), radius = h * 0.2f, center = Offset(w * (0.58f + 0.06f * drift), h * 0.35f))
+            }
+            WeatherSceneType.RAIN -> {
+                for (i in 0..14) {
+                    val x = w * (i / 14f)
+                    val y = h * (0.18f + (i % 4) * 0.08f + 0.05f * drift)
+                    drawLine(Color(0xFF74A7D8), Offset(x, y), Offset(x - 14f, y + 32f), strokeWidth = 6f)
+                }
+            }
+            WeatherSceneType.SNOW -> {
+                for (i in 0..24) {
+                    val x = w * (i / 24f)
+                    val y = h * (0.15f + (i % 5) * 0.1f + 0.04f * drift)
+                    drawCircle(Color(0xFFEAF5FF), radius = 7f, center = Offset(x, y))
+                }
+            }
+            WeatherSceneType.STORM -> {
+                drawCircle(Color(0xFF2B2F67), radius = h * 0.25f, center = Offset(w * 0.5f, h * 0.3f))
+                drawLine(Color(0xFFFFE082), Offset(w * 0.57f, h * 0.28f), Offset(w * 0.47f, h * 0.6f), strokeWidth = 14f)
+                drawLine(Color(0xFFFFE082), Offset(w * 0.47f, h * 0.6f), Offset(w * 0.6f, h * 0.58f), strokeWidth = 14f)
+            }
+            WeatherSceneType.WINDY -> {
+                for (i in 0..5) {
+                    val y = h * (0.18f + i * 0.12f)
+                    drawArc(
+                        color = Color(0xFFA6B9D6),
+                        startAngle = 12f,
+                        sweepAngle = 220f,
+                        useCenter = false,
+                        topLeft = Offset(w * (0.08f + 0.1f * drift), y),
+                        size = Size(w * 0.72f, h * 0.22f),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 9f),
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -433,19 +531,26 @@ private fun SettingsDialog(
 }
 
 @Composable
-private fun MetricLine(label: String, value: String) {
+private fun MetricLine(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.padding(vertical = 6.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        horizontalAlignment = Alignment.Start,
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
         )
         Text(
             text = value,
             style = MaterialTheme.typography.headlineSmall,
+            textAlign = TextAlign.Start,
         )
     }
 }
