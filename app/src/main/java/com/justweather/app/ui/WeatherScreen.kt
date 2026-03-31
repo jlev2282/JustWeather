@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterDrama
 import androidx.compose.material.icons.filled.Grain
 import androidx.compose.material.icons.filled.Thunderstorm
@@ -32,6 +33,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -301,6 +303,12 @@ private fun ForecastCard(day: ForecastDayEntity, useFahrenheit: Boolean) {
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
             )
         }
+        Text(
+            text = forecastConditionLabel(day.weatherCode),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+        )
+        Spacer(modifier = Modifier.width(8.dp))
         Image(
             painter = painterResource(id = forecastIconRes(day.weatherCode)),
             contentDescription = "Forecast icon for $dayName",
@@ -320,6 +328,19 @@ private fun forecastIconRes(weatherCode: Int?): Int {
         71, 73, 75, 77, 85, 86 -> com.justweather.app.R.drawable.ic_weather_snow
         95, 96, 99 -> com.justweather.app.R.drawable.ic_weather_storm
         else -> com.justweather.app.R.drawable.ic_weather_unknown
+    }
+}
+
+private fun forecastConditionLabel(weatherCode: Int?): String {
+    return when (weatherCode) {
+        0 -> "Sunny"
+        1, 2, 3 -> "Cloudy"
+        45, 48 -> "Foggy"
+        51, 53, 55, 56, 57 -> "Drizzle"
+        61, 63, 65, 66, 67, 80, 81, 82 -> "Rainy"
+        71, 73, 75, 77, 85, 86 -> "Snowy"
+        95, 96, 99 -> "Stormy"
+        else -> "Unknown"
     }
 }
 
@@ -491,6 +512,16 @@ private fun SettingsDialog(
                     onValueChange = onLocationInputChanged,
                     label = { Text("Location (City, State, Country)") },
                     singleLine = true,
+                    trailingIcon = {
+                        if (locationInput.isNotBlank()) {
+                            IconButton(onClick = { onLocationInputChanged("") }) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Clear location",
+                                )
+                            }
+                        }
+                    },
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 suggestions.take(5).forEach { suggestion ->
