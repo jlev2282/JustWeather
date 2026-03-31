@@ -12,6 +12,8 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
+import java.time.LocalDate
+import java.time.ZoneOffset
 
 class WeatherRepository(
     private val weatherDao: WeatherDao,
@@ -61,22 +63,49 @@ class WeatherRepository(
                     ),
                 )
 
-                val forecast = api.getSevenDayForecast(
-                    lat = remote.coord.lat,
-                    lon = remote.coord.lon,
-                    apiKey = BuildConfig.WEATHER_API_KEY,
-                )
-                val forecastRows = forecast.daily
-                    .take(7)
-                    .mapIndexed { index, day ->
+                val forecastRows = runCatching {
+                    api.getSevenDayForecast(
+                        lat = remote.coord.lat,
+                        lon = remote.coord.lon,
+                        apiKey = BuildConfig.WEATHER_API_KEY,
+                    ).daily
+                        .take(7)
+                        .mapIndexed { index, day ->
+                            ForecastDayEntity(
+                                cityQuery = query,
+                                dayIndex = index,
+                                dayEpochSeconds = day.dt,
+                                minTempCelsius = day.temp.min,
+                                maxTempCelsius = day.temp.max,
+                            weatherCode = day.weather.firstOrNull()?.id?.let(::normalizeWeatherCode),
+                            )
+                        }
+                }.getOrElse {
+                    val openMeteoForecast = openMeteoApi.getDailyForecast(
+                        latitude = remote.coord.lat,
+                        longitude = remote.coord.lon,
+                    )
+                    val daily = openMeteoForecast.daily
+                    val count = minOf(
+                        daily.time.size,
+                        daily.temperature_2m_min.size,
+                        daily.temperature_2m_max.size,
+                        7,
+                    )
+                    (0 until count).map { index ->
+                        val epochSeconds = LocalDate.parse(daily.time[index])
+                            .atStartOfDay()
+                            .toEpochSecond(ZoneOffset.UTC)
                         ForecastDayEntity(
                             cityQuery = query,
                             dayIndex = index,
-                            dayEpochSeconds = day.dt,
-                            minTempCelsius = day.temp.min,
-                            maxTempCelsius = day.temp.max,
+                            dayEpochSeconds = epochSeconds,
+                            minTempCelsius = daily.temperature_2m_min[index],
+                            maxTempCelsius = daily.temperature_2m_max[index],
+                            weatherCode = daily.weather_code?.getOrNull(index),
                         )
                     }
+                }
                 weatherDao.replaceForecast(query, forecastRows)
             }
         }
@@ -146,5 +175,19 @@ class WeatherRepository(
     companion object {
         private const val DEFAULT_CITY = "London"
         private val THUNDERSTORM_CODES = setOf(95, 96, 99)
+
+        // OpenWeather weather IDs are grouped to the closest Open-Meteo style code buckets.
+        private fun normalizeWeatherCode(openWeatherCode: Int): Int {
+            return when (openWeatherCode) {
+                in 200..232 -> 95
+                in 300..321 -> 53
+                in 500..531 -> 63
+                in 600..622 -> 73
+                in 700..781 -> 45
+                800 -> 0
+                in 801..804 -> 3
+                else -> 0
+            }
+        }
     }
 }

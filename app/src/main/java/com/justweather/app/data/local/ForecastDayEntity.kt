@@ -12,5 +12,6 @@ data class ForecastDayEntity(
     val dayEpochSeconds: Long,
     val minTempCelsius: Double,
     val maxTempCelsius: Double,
+    val weatherCode: Int?,
 )
 

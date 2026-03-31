@@ -28,11 +28,16 @@ data class ForecastResponse(
 data class ForecastDailyBlock(
     val dt: Long,
     val temp: ForecastTempBlock,
+    val weather: List<WeatherCodeBlock> = emptyList(),
 )
 
 data class ForecastTempBlock(
     val min: Double,
     val max: Double,
+)
+
+data class WeatherCodeBlock(
+    val id: Int,
 )
 
 data class GeoLocationResponse(

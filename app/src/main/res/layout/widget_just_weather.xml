@@ -5,16 +5,6 @@
     android:layout_height="match_parent"
     android:background="@drawable/widget_card_background">
 
-    <ImageView
-        android:id="@+id/widget_watermark_icon"
-        android:layout_width="360dp"
-        android:layout_height="360dp"
-        android:layout_gravity="center"
-        android:alpha="0.24"
-        android:contentDescription="@string/widget_description"
-        android:scaleType="centerInside"
-        android:tint="#FFFFFF" />
-
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -46,6 +36,15 @@
         android:textStyle="bold" />
 
     <TextView
+        android:id="@+id/widget_condition"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:textColor="#EAF2FF"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+
+    <TextView
         android:id="@+id/widget_humidity"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -68,13 +67,13 @@
         android:textColor="#C2D6FF"
         android:textSize="11sp" />
 
-    <TextView
-        android:id="@+id/widget_forecast"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="7dp"
-        android:textColor="#EAF2FF"
-        android:textSize="11sp" />
+    <ImageView
+        android:id="@+id/widget_condition_image"
+        android:layout_width="52dp"
+        android:layout_height="52dp"
+        android:layout_marginTop="6dp"
+        android:contentDescription="@string/widget_description"
+        android:tint="#EAF2FF" />
 
     </LinearLayout>
 

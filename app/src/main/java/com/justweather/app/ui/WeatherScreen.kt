@@ -8,6 +8,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
@@ -252,7 +253,7 @@ private fun WeatherContent(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                     )
                 } else {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(forecast, key = { "${it.cityQuery}-${it.dayIndex}" }) { day ->
                             ForecastCard(day = day, useFahrenheit = settings.useFahrenheit)
                         }
@@ -276,19 +277,49 @@ private fun ForecastCard(day: ForecastDayEntity, useFahrenheit: Boolean) {
         .replaceFirstChar { it.uppercase() }
         .take(3)
 
-    Column(
+    Row(
         modifier = Modifier
-            .width(86.dp)
+            .fillMaxWidth()
             .padding(vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(dayName, style = MaterialTheme.typography.labelLarge)
-        Text(String.format("%.0f%s", max, unit), style = MaterialTheme.typography.bodyLarge)
         Text(
-            String.format("%.0f%s", min, unit),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            text = dayName,
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.weight(1f),
         )
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Text(String.format("%.0f%s", max, unit), style = MaterialTheme.typography.bodyLarge)
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                String.format("%.0f%s", min, unit),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            )
+        }
+        Image(
+            painter = painterResource(id = forecastIconRes(day.weatherCode)),
+            contentDescription = "Forecast icon for $dayName",
+            modifier = Modifier
+                .width(22.dp)
+                .height(22.dp),
+        )
+    }
+}
+
+private fun forecastIconRes(weatherCode: Int?): Int {
+    return when (weatherCode) {
+        0 -> com.justweather.app.R.drawable.ic_weather_clear
+        1, 2, 3 -> com.justweather.app.R.drawable.ic_weather_cloudy
+        45, 48 -> com.justweather.app.R.drawable.ic_weather_fog
+        51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82 -> com.justweather.app.R.drawable.ic_weather_rain
+        71, 73, 75, 77, 85, 86 -> com.justweather.app.R.drawable.ic_weather_snow
+        95, 96, 99 -> com.justweather.app.R.drawable.ic_weather_storm
+        else -> com.justweather.app.R.drawable.ic_weather_unknown
     }
 }
 

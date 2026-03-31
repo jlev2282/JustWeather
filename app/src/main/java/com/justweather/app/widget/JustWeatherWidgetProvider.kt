@@ -63,9 +63,15 @@ class JustWeatherWidgetProvider : AppWidgetProvider() {
                 appWidgetIds.forEach { id ->
                     val options = appWidgetManager.getAppWidgetOptions(id)
                     val views = if (isWideWidget(options)) {
-                    buildWideViews(context, settings.locationDisplay, weather, forecast)
+                        buildWideViews(
+                            context = context,
+                            locationDisplay = settings.locationDisplay,
+                            weather = weather,
+                            forecast = forecast,
+                            useFahrenheit = settings.useFahrenheit,
+                        )
                     } else {
-                        buildCompactViews(context, settings.locationDisplay, weather, forecast, settings.useFahrenheit)
+                        buildCompactViews(context, settings.locationDisplay, weather, settings.useFahrenheit)
                     }
                     appWidgetManager.updateAppWidget(id, views)
                 }
@@ -76,18 +82,19 @@ class JustWeatherWidgetProvider : AppWidgetProvider() {
             context: Context,
             locationDisplay: String,
             weather: com.justweather.app.data.local.WeatherEntity?,
-            forecast: List<ForecastDayEntity>,
             useFahrenheit: Boolean,
         ): RemoteViews {
             return RemoteViews(context.packageName, R.layout.widget_just_weather).apply {
-                val backgroundArt = conditionBackgroundArtRes(weather?.weatherCode, weather?.windSpeedMetersPerSecond)
                 val backgroundScene = conditionBackgroundSceneRes(weather?.weatherCode, weather?.windSpeedMetersPerSecond)
-                setImageViewResource(R.id.widget_watermark_icon, backgroundArt)
                 setInt(R.id.widget_root, "setBackgroundResource", backgroundScene)
                 setTextViewText(R.id.widget_location, locationDisplay)
                 setTextViewText(
                     R.id.widget_temp,
                     weather?.tempCelsius?.let { formatTemp(it, useFahrenheit) } ?: "--",
+                )
+                setTextViewText(
+                    R.id.widget_condition,
+                    formatCondition(weather?.weatherCode, weather?.windSpeedMetersPerSecond),
                 )
                 setTextViewText(
                     R.id.widget_humidity,
@@ -102,7 +109,10 @@ class JustWeatherWidgetProvider : AppWidgetProvider() {
                     R.id.widget_updated,
                     weather?.updatedAtEpochMs?.let { "Updated ${formatTime(it)}" } ?: "Updated --",
                 )
-                setTextViewText(R.id.widget_forecast, formatForecast(forecast, useFahrenheit))
+                setImageViewResource(
+                    R.id.widget_condition_image,
+                    conditionImageRes(weather?.weatherCode, weather?.windSpeedMetersPerSecond),
+                )
                 setOnClickPendingIntent(R.id.widget_root, launchPendingIntent(context))
             }
         }
@@ -112,23 +122,27 @@ class JustWeatherWidgetProvider : AppWidgetProvider() {
             locationDisplay: String,
             weather: com.justweather.app.data.local.WeatherEntity?,
             forecast: List<ForecastDayEntity>,
+            useFahrenheit: Boolean,
         ): RemoteViews {
             return RemoteViews(context.packageName, R.layout.widget_just_weather_wide).apply {
-                val backgroundArt = conditionBackgroundArtRes(weather?.weatherCode, weather?.windSpeedMetersPerSecond)
                 val backgroundScene = conditionBackgroundSceneRes(weather?.weatherCode, weather?.windSpeedMetersPerSecond)
-                setImageViewResource(R.id.widget_wide_watermark_icon, backgroundArt)
                 setInt(R.id.widget_wide_root, "setBackgroundResource", backgroundScene)
                 setTextViewText(R.id.widget_wide_location, locationDisplay)
                 setTextViewText(
                     R.id.widget_wide_temp,
-                    weather?.tempCelsius?.let { String.format("%.0f°F", (it * 9.0 / 5.0) + 32.0) } ?: "--",
+                    weather?.tempCelsius?.let { formatTemp(it, useFahrenheit) } ?: "--",
                 )
                 val highLow = forecast.firstOrNull()?.let {
-                    val high = (it.maxTempCelsius * 9.0 / 5.0) + 32.0
-                    val low = (it.minTempCelsius * 9.0 / 5.0) + 32.0
-                    "H:${String.format("%.0f", high)}°  L:${String.format("%.0f", low)}°"
+                    val high = if (useFahrenheit) (it.maxTempCelsius * 9.0 / 5.0) + 32.0 else it.maxTempCelsius
+                    val low = if (useFahrenheit) (it.minTempCelsius * 9.0 / 5.0) + 32.0 else it.minTempCelsius
+                    val unit = if (useFahrenheit) "F" else "C"
+                    "H:${String.format("%.0f", high)}$unit  L:${String.format("%.0f", low)}$unit"
                 } ?: "H:--  L:--"
                 setTextViewText(R.id.widget_wide_high_low, highLow)
+                setTextViewText(
+                    R.id.widget_wide_condition,
+                    formatCondition(weather?.weatherCode, weather?.windSpeedMetersPerSecond),
+                )
                 setOnClickPendingIntent(R.id.widget_wide_root, launchPendingIntent(context))
             }
         }
@@ -157,41 +171,6 @@ class JustWeatherWidgetProvider : AppWidgetProvider() {
             }
         }
 
-        private fun weatherIconRes(weatherCode: Int?): Int {
-            if (weatherCode == null) return R.drawable.ic_weather_unknown
-            return when (weatherCode) {
-                0 -> R.drawable.ic_weather_clear
-                1, 2, 3 -> R.drawable.ic_weather_cloudy
-                45, 48 -> R.drawable.ic_weather_fog
-                51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82 -> R.drawable.ic_weather_rain
-                71, 73, 75, 77, 85, 86 -> R.drawable.ic_weather_snow
-                95, 96, 99 -> R.drawable.ic_weather_storm
-                else -> R.drawable.ic_weather_unknown
-            }
-        }
-
-        private fun conditionIconRes(weatherCode: Int?, windSpeedMetersPerSecond: Double?): Int {
-            if ((windSpeedMetersPerSecond ?: 0.0) >= 10.0) {
-                return R.drawable.ic_weather_windy
-            }
-            return weatherIconRes(weatherCode)
-        }
-
-        private fun conditionBackgroundArtRes(weatherCode: Int?, windSpeedMetersPerSecond: Double?): Int {
-            if ((windSpeedMetersPerSecond ?: 0.0) >= 10.0) {
-                return R.drawable.ic_weather_windy
-            }
-            return when (weatherCode) {
-                0 -> R.drawable.ic_weather_clear
-                1, 2, 3 -> R.drawable.ic_weather_cloudy
-                45, 48 -> R.drawable.ic_weather_fog
-                51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82 -> R.drawable.ic_weather_rain
-                71, 73, 75, 77, 85, 86 -> R.drawable.ic_weather_snow
-                95, 96, 99 -> R.drawable.ic_weather_storm
-                else -> R.drawable.ic_weather_unknown
-            }
-        }
-
         private fun conditionBackgroundSceneRes(weatherCode: Int?, windSpeedMetersPerSecond: Double?): Int {
             if ((windSpeedMetersPerSecond ?: 0.0) >= 10.0) return R.drawable.widget_scene_windy
             return when (weatherCode) {
@@ -205,25 +184,40 @@ class JustWeatherWidgetProvider : AppWidgetProvider() {
             }
         }
 
+        private fun conditionImageRes(weatherCode: Int?, windSpeedMetersPerSecond: Double?): Int {
+            if ((windSpeedMetersPerSecond ?: 0.0) >= 10.0) return R.drawable.ic_weather_windy
+            return when (weatherCode) {
+                0 -> R.drawable.ic_weather_clear
+                1, 2, 3 -> R.drawable.ic_weather_cloudy
+                45, 48 -> R.drawable.ic_weather_fog
+                51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82 -> R.drawable.ic_weather_rain
+                71, 73, 75, 77, 85, 86 -> R.drawable.ic_weather_snow
+                95, 96, 99 -> R.drawable.ic_weather_storm
+                else -> R.drawable.ic_weather_unknown
+            }
+        }
+
+        private fun formatCondition(weatherCode: Int?, windSpeedMetersPerSecond: Double?): String {
+            if ((windSpeedMetersPerSecond ?: 0.0) >= 10.0) return "Windy"
+            return when (weatherCode) {
+                0 -> "Clear Sky"
+                1, 2, 3 -> "Cloudy"
+                45, 48 -> "Fog"
+                51, 53, 55 -> "Drizzle"
+                56, 57 -> "Freezing Drizzle"
+                61, 63, 65, 80, 81, 82 -> "Rain"
+                66, 67 -> "Freezing Rain"
+                71, 73, 75, 77, 85, 86 -> "Snow"
+                95, 96, 99 -> "Thunderstorm"
+                else -> "Conditions unavailable"
+            }
+        }
+
         private fun formatWind(metersPerSecond: Double, useFahrenheit: Boolean): String {
             return if (useFahrenheit) {
                 String.format("%.1f mph", metersPerSecond * 2.23694)
             } else {
                 String.format("%.1f m/s", metersPerSecond)
-            }
-        }
-
-        private fun formatForecast(days: List<ForecastDayEntity>, useF: Boolean): String {
-            if (days.isEmpty()) return "Forecast unavailable"
-            val dayFormatter = DateTimeFormatter.ofPattern("EEE")
-            return days.joinToString("  ") { day ->
-                val label = Instant.ofEpochSecond(day.dayEpochSeconds)
-                    .atZone(ZoneId.systemDefault())
-                    .format(dayFormatter)
-                val max = if (useF) (day.maxTempCelsius * 9.0 / 5.0) + 32.0 else day.maxTempCelsius
-                val min = if (useF) (day.minTempCelsius * 9.0 / 5.0) + 32.0 else day.minTempCelsius
-                val unit = if (useF) "F" else "C"
-                "$label ${String.format("%.0f", max)}/${String.format("%.0f", min)}$unit"
             }
         }
 

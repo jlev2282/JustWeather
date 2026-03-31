@@ -5,16 +5,6 @@
     android:layout_height="match_parent"
     android:background="@drawable/widget_card_background_wide">
 
-    <ImageView
-        android:id="@+id/widget_wide_watermark_icon"
-        android:layout_width="440dp"
-        android:layout_height="440dp"
-        android:layout_gravity="center"
-        android:alpha="0.22"
-        android:contentDescription="@string/widget_description"
-        android:scaleType="centerInside"
-        android:tint="#FFFFFF" />
-
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -46,6 +36,15 @@
             android:layout_marginTop="6dp"
             android:textColor="#CFE4FF"
             android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/widget_wide_condition"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#EAF2FF"
+            android:textSize="12sp"
+            android:textStyle="bold" />
     </LinearLayout>
 
     <TextView
