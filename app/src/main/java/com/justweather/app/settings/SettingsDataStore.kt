@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
@@ -39,6 +40,8 @@ class SettingsDataStore(
             prefs[SEVERE_NOTIFICATIONS_KEY] = severeNotificationsEnabled
         }
     }
+
+    suspend fun getCurrentSettings(): UiSettings = settingsFlow.first()
 
     companion object {
         private const val DEFAULT_LOCATION = "London, England, GB"

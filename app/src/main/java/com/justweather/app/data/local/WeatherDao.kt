@@ -23,6 +23,9 @@ interface WeatherDao {
     @Query("SELECT * FROM forecast_cache WHERE cityQuery = :cityQuery ORDER BY dayIndex ASC")
     fun observeForecast(cityQuery: String): Flow<List<ForecastDayEntity>>
 
+    @Query("SELECT * FROM forecast_cache WHERE cityQuery = :cityQuery ORDER BY dayIndex ASC")
+    suspend fun getForecast(cityQuery: String): List<ForecastDayEntity>
+
     @Query("DELETE FROM forecast_cache WHERE cityQuery = :cityQuery")
     suspend fun deleteForecast(cityQuery: String)
 

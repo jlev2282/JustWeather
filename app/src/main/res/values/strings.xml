@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">JustWeather</string>
+    <string name="just_weather_widget_name">JustWeather Compact</string>
+    <string name="widget_description">Compact weather snapshot with forecast</string>
 </resources>

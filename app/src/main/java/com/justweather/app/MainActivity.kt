@@ -15,6 +15,7 @@ import com.justweather.app.ui.WeatherRoute
 import com.justweather.app.ui.WeatherViewModel
 import com.justweather.app.ui.WeatherViewModelFactory
 import com.justweather.app.ui.theme.JustWeatherTheme
+import com.justweather.app.widget.JustWeatherWidgetProvider
 
 class MainActivity : ComponentActivity() {
 
@@ -35,5 +36,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        JustWeatherWidgetProvider.refreshAllWidgets(this)
     }
 }
