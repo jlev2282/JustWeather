@@ -289,33 +289,48 @@ private fun ForecastCard(day: ForecastDayEntity, useFahrenheit: Boolean) {
             text = dayName,
             style = MaterialTheme.typography.labelLarge,
             modifier = Modifier.weight(1f),
+            textAlign = TextAlign.Start,
         )
         Row(
             modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
-            Text(String.format("%.0f%s", max, unit), style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = String.format("%.0f%s", max, unit),
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.width(60.dp),
+                textAlign = TextAlign.End,
+            )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
-                String.format("%.0f%s", min, unit),
+                text = String.format("%.0f%s", min, unit),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                modifier = Modifier.width(60.dp),
+                textAlign = TextAlign.Start,
             )
         }
-        Text(
-            text = forecastConditionLabel(day.weatherCode),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Image(
-            painter = painterResource(id = forecastIconRes(day.weatherCode)),
-            contentDescription = "Forecast icon for $dayName",
-            modifier = Modifier
-                .width(22.dp)
-                .height(22.dp),
-        )
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.End,
+        ) {
+            Text(
+                text = forecastConditionLabel(day.weatherCode),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                textAlign = TextAlign.End,
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Image(
+                painter = painterResource(id = forecastIconRes(day.weatherCode)),
+                contentDescription = "Forecast icon for $dayName",
+                modifier = Modifier
+                    .width(22.dp)
+                    .height(22.dp),
+            )
+        }
     }
 }
 
