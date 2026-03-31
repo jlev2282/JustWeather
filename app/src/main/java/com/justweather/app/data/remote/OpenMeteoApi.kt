@@ -9,7 +9,7 @@ interface OpenMeteoApi {
     suspend fun getCurrentConditions(
         @Query("latitude") latitude: Double,
         @Query("longitude") longitude: Double,
-        @Query("current") current: String = "temperature_2m,precipitation,weather_code",
+        @Query("current") current: String = "temperature_2m,apparent_temperature,precipitation,weather_code",
         @Query("temperature_unit") temperatureUnit: String = "fahrenheit",
         @Query("precipitation_unit") precipitationUnit: String = "inch",
     ): OpenMeteoCurrentResponse

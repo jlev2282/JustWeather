@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.Bundle
 import android.widget.RemoteViews
 import com.justweather.app.MainActivity
 import com.justweather.app.R
@@ -30,6 +31,16 @@ class JustWeatherWidgetProvider : AppWidgetProvider() {
         refreshAllWidgets(context, appWidgetManager, appWidgetIds)
     }
 
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle,
+    ) {
+        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+        refreshAllWidgets(context, appWidgetManager, intArrayOf(appWidgetId))
+    }
+
     companion object {
         fun refreshAllWidgets(context: Context) {
             val manager = AppWidgetManager.getInstance(context)
@@ -49,42 +60,87 @@ class JustWeatherWidgetProvider : AppWidgetProvider() {
                 val settings = SettingsDataStore(context).getCurrentSettings()
                 val weather = dao.getWeather(settings.locationDisplay)
                 val forecast = dao.getForecast(settings.locationDisplay).take(3)
-
-                val views = RemoteViews(context.packageName, R.layout.widget_just_weather).apply {
-                    setTextViewText(R.id.widget_location, settings.locationDisplay)
-                    setTextViewText(
-                        R.id.widget_temp,
-                        weather?.tempCelsius?.let { formatTemp(it, settings.useFahrenheit) } ?: "--",
-                    )
-                    setTextViewText(
-                        R.id.widget_humidity,
-                        weather?.humidityPercent?.let { "Humidity $it%" } ?: "Humidity --",
-                    )
-                    setTextViewText(
-                        R.id.widget_wind,
-                        weather?.windSpeedMetersPerSecond?.let { "Wind ${String.format("%.1f", it)} m/s" }
-                            ?: "Wind --",
-                    )
-                    setTextViewText(
-                        R.id.widget_updated,
-                        weather?.updatedAtEpochMs?.let { "Updated ${formatTime(it)}" } ?: "Updated --",
-                    )
-                    setTextViewText(R.id.widget_forecast, formatForecast(forecast, settings.useFahrenheit))
-
-                    val launchIntent = Intent(context, MainActivity::class.java)
-                    val pendingIntent = PendingIntent.getActivity(
-                        context,
-                        0,
-                        launchIntent,
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-                    )
-                    setOnClickPendingIntent(R.id.widget_root, pendingIntent)
-                }
-
                 appWidgetIds.forEach { id ->
+                    val options = appWidgetManager.getAppWidgetOptions(id)
+                    val views = if (isWideWidget(options)) {
+                        buildWideViews(context, settings.locationDisplay, weather, forecast)
+                    } else {
+                        buildCompactViews(context, settings.locationDisplay, weather, forecast, settings.useFahrenheit)
+                    }
                     appWidgetManager.updateAppWidget(id, views)
                 }
             }
+        }
+
+        private fun buildCompactViews(
+            context: Context,
+            locationDisplay: String,
+            weather: com.justweather.app.data.local.WeatherEntity?,
+            forecast: List<ForecastDayEntity>,
+            useFahrenheit: Boolean,
+        ): RemoteViews {
+            return RemoteViews(context.packageName, R.layout.widget_just_weather).apply {
+                setTextViewText(R.id.widget_location, locationDisplay)
+                setImageViewResource(R.id.widget_condition_icon, weatherIconRes(weather?.weatherCode))
+                setTextViewText(
+                    R.id.widget_temp,
+                    weather?.tempCelsius?.let { formatTemp(it, useFahrenheit) } ?: "--",
+                )
+                setTextViewText(
+                    R.id.widget_humidity,
+                    weather?.humidityPercent?.let { "Humidity $it%" } ?: "Humidity --",
+                )
+                setTextViewText(
+                    R.id.widget_wind,
+                    weather?.windSpeedMetersPerSecond?.let { "Wind ${formatWind(it, useFahrenheit)}" }
+                        ?: "Wind --",
+                )
+                setTextViewText(
+                    R.id.widget_updated,
+                    weather?.updatedAtEpochMs?.let { "Updated ${formatTime(it)}" } ?: "Updated --",
+                )
+                setTextViewText(R.id.widget_forecast, formatForecast(forecast, useFahrenheit))
+                setOnClickPendingIntent(R.id.widget_root, launchPendingIntent(context))
+            }
+        }
+
+        private fun buildWideViews(
+            context: Context,
+            locationDisplay: String,
+            weather: com.justweather.app.data.local.WeatherEntity?,
+            forecast: List<ForecastDayEntity>,
+        ): RemoteViews {
+            return RemoteViews(context.packageName, R.layout.widget_just_weather_wide).apply {
+                setImageViewResource(R.id.widget_wide_condition_icon, weatherIconRes(weather?.weatherCode))
+                setTextViewText(R.id.widget_wide_location, locationDisplay)
+                setTextViewText(
+                    R.id.widget_wide_temp,
+                    weather?.tempCelsius?.let { String.format("%.0f°F", (it * 9.0 / 5.0) + 32.0) } ?: "--",
+                )
+                val highLow = forecast.firstOrNull()?.let {
+                    val high = (it.maxTempCelsius * 9.0 / 5.0) + 32.0
+                    val low = (it.minTempCelsius * 9.0 / 5.0) + 32.0
+                    "H:${String.format("%.0f", high)}°  L:${String.format("%.0f", low)}°"
+                } ?: "H:--  L:--"
+                setTextViewText(R.id.widget_wide_high_low, highLow)
+                setOnClickPendingIntent(R.id.widget_wide_root, launchPendingIntent(context))
+            }
+        }
+
+        private fun launchPendingIntent(context: Context): PendingIntent {
+            val launchIntent = Intent(context, MainActivity::class.java)
+            return PendingIntent.getActivity(
+                context,
+                0,
+                launchIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+        }
+
+        private fun isWideWidget(options: Bundle): Boolean {
+            val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
+            val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
+            return minWidth >= 280 && minHeight <= 130
         }
 
         private fun formatTemp(tempC: Double, useF: Boolean): String {
@@ -92,6 +148,27 @@ class JustWeatherWidgetProvider : AppWidgetProvider() {
                 String.format("%.0f°F", (tempC * 9.0 / 5.0) + 32.0)
             } else {
                 String.format("%.0f°C", tempC)
+            }
+        }
+
+        private fun weatherIconRes(weatherCode: Int?): Int {
+            if (weatherCode == null) return R.drawable.ic_weather_unknown
+            return when (weatherCode) {
+                0 -> R.drawable.ic_weather_clear
+                1, 2, 3 -> R.drawable.ic_weather_cloudy
+                45, 48 -> R.drawable.ic_weather_fog
+                51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82 -> R.drawable.ic_weather_rain
+                71, 73, 75, 77, 85, 86 -> R.drawable.ic_weather_snow
+                95, 96, 99 -> R.drawable.ic_weather_storm
+                else -> R.drawable.ic_weather_unknown
+            }
+        }
+
+        private fun formatWind(metersPerSecond: Double, useFahrenheit: Boolean): String {
+            return if (useFahrenheit) {
+                String.format("%.1f mph", metersPerSecond * 2.23694)
+            } else {
+                String.format("%.1f m/s", metersPerSecond)
             }
         }
 

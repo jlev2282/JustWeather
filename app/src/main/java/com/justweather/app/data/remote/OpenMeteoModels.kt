@@ -6,6 +6,7 @@ data class OpenMeteoCurrentResponse(
 
 data class OpenMeteoCurrentBlock(
     val temperature_2m: Double,
+    val apparent_temperature: Double,
     val precipitation: Double,
     val weather_code: Int,
 )

@@ -41,6 +41,10 @@ class WeatherRepository(
         withContext(ioDispatcher) {
             runCatching {
                 val remote = api.getCurrentWeather(query, BuildConfig.WEATHER_API_KEY)
+                val currentConditions = openMeteoApi.getCurrentConditions(
+                    latitude = remote.coord.lat,
+                    longitude = remote.coord.lon,
+                ).current
                 val now = System.currentTimeMillis()
                 weatherDao.upsert(
                     WeatherEntity(
@@ -48,6 +52,8 @@ class WeatherRepository(
                         cityName = remote.name,
                         latitude = remote.coord.lat,
                         longitude = remote.coord.lon,
+                        weatherCode = currentConditions.weather_code,
+                        feelsLikeFahrenheit = currentConditions.apparent_temperature,
                         tempCelsius = remote.main.temp,
                         humidityPercent = remote.main.humidity,
                         windSpeedMetersPerSecond = remote.wind.speed,

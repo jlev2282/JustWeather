@@ -6,6 +6,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,9 +19,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.FilterDrama
+import androidx.compose.material.icons.filled.Grain
+import androidx.compose.material.icons.filled.Thunderstorm
+import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -28,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
@@ -38,6 +48,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.collect
@@ -129,6 +141,13 @@ private fun WeatherContent(
     forecast: List<ForecastDayEntity>,
     settings: UiSettings,
 ) {
+    val currentCondition = weather?.weatherCode?.let(::decodeWeatherCode)
+        ?: WeatherConditionUi("Unknown", Icons.Default.FilterDrama, Color(0xFFF2F6FC))
+    val backgroundColor by animateColorAsState(
+        targetValue = currentCondition.backgroundColor,
+        label = "weather-bg",
+    )
+
     val tempText = if (weather == null) {
         "—"
     } else if (settings.useFahrenheit) {
@@ -140,19 +159,46 @@ private fun WeatherContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(backgroundColor)
             .padding(16.dp),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Top,
+            horizontalAlignment = Alignment.Start,
         ) {
+            Text(
+                text = "Current Conditions",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(top = 8.dp),
+            ) {
+                Icon(
+                    imageVector = currentCondition.icon,
+                    contentDescription = currentCondition.label,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = currentCondition.label,
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+            Text(
+                text = weather?.let { formatFeelsLike(it.feelsLikeFahrenheit, settings.useFahrenheit) } ?: "Feels Like —",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+            )
             Text(
                 text = settings.locationDisplay,
                 style = MaterialTheme.typography.titleMedium,
-                textAlign = TextAlign.Center,
+                textAlign = TextAlign.Start,
             )
             MetricLine(label = "Temp", value = tempText)
             MetricLine(
@@ -161,7 +207,7 @@ private fun WeatherContent(
             )
             MetricLine(
                 label = "Wind Speed",
-                value = weather?.windSpeedMetersPerSecond?.let { String.format("%.1f m/s", it) } ?: "—",
+                value = weather?.windSpeedMetersPerSecond?.let { formatWindSpeed(it, settings.useFahrenheit) } ?: "—",
             )
             Text(
                 text = "Last Updated",
@@ -240,6 +286,49 @@ private fun formatLastUpdated(epochMs: Long?): String {
 }
 
 private fun celsiusToFahrenheit(celsius: Double): Double = celsius * 9.0 / 5.0 + 32.0
+private fun fahrenheitToCelsius(f: Double): Double = (f - 32.0) * 5.0 / 9.0
+
+private fun metersPerSecondToMph(mps: Double): Double = mps * 2.23694
+
+private fun formatWindSpeed(mps: Double, useFahrenheit: Boolean): String {
+    return if (useFahrenheit) {
+        String.format("%.1f mph", metersPerSecondToMph(mps))
+    } else {
+        String.format("%.1f m/s", mps)
+    }
+}
+
+private fun formatFeelsLike(feelsLikeF: Double, useFahrenheit: Boolean): String {
+    return if (useFahrenheit) {
+        "Feels Like ${String.format("%.1f °F", feelsLikeF)}"
+    } else {
+        "Feels Like ${String.format("%.1f °C", fahrenheitToCelsius(feelsLikeF))}"
+    }
+}
+
+private data class WeatherConditionUi(
+    val label: String,
+    val icon: ImageVector,
+    val backgroundColor: Color,
+)
+
+private fun decodeWeatherCode(code: Int): WeatherConditionUi {
+    return when (code) {
+        0 -> WeatherConditionUi("Clear Sky", Icons.Default.WbSunny, Color(0xFFE8F4FF))
+        1, 2 -> WeatherConditionUi("Partly Cloudy", Icons.Default.Cloud, Color(0xFFEFF4FA))
+        3 -> WeatherConditionUi("Overcast", Icons.Default.Cloud, Color(0xFFE1E5EC))
+        45, 48 -> WeatherConditionUi("Foggy", Icons.Default.FilterDrama, Color(0xFFE7EAF0))
+        51, 53, 55, 56, 57 -> WeatherConditionUi("Drizzle", Icons.Default.Grain, Color(0xFFE5EDF7))
+        61 -> WeatherConditionUi("Slight Rain", Icons.Default.Grain, Color(0xFFDDE9F7))
+        63, 65, 66, 67 -> WeatherConditionUi("Rain", Icons.Default.Grain, Color(0xFFD7E5F6))
+        71, 73, 75, 77 -> WeatherConditionUi("Snow", Icons.Default.Cloud, Color(0xFFEAF1FA))
+        80, 81, 82 -> WeatherConditionUi("Rain Showers", Icons.Default.Grain, Color(0xFFD8E6F8))
+        85, 86 -> WeatherConditionUi("Snow Showers", Icons.Default.Cloud, Color(0xFFEAF1FA))
+        95 -> WeatherConditionUi("Thunderstorm", Icons.Default.Thunderstorm, Color(0xFF312E5A))
+        96, 99 -> WeatherConditionUi("Stormy", Icons.Default.Bolt, Color(0xFF2B2956))
+        else -> WeatherConditionUi("Unknown", Icons.Default.FilterDrama, Color(0xFFF2F6FC))
+    }
+}
 
 @Composable
 private fun SettingsDialog(

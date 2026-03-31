@@ -10,6 +10,8 @@ data class WeatherEntity(
     val cityName: String,
     val latitude: Double,
     val longitude: Double,
+    val weatherCode: Int,
+    val feelsLikeFahrenheit: Double,
     val tempCelsius: Double,
     val humidityPercent: Int,
     val windSpeedMetersPerSecond: Double,
