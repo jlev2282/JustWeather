@@ -69,6 +69,7 @@ class WeatherRepository(
                         lon = remote.coord.lon,
                         apiKey = BuildConfig.WEATHER_API_KEY,
                     ).daily
+                        .drop(1) // Skip today; keep next 7 days.
                         .take(7)
                         .mapIndexed { index, day ->
                             ForecastDayEntity(
@@ -84,25 +85,26 @@ class WeatherRepository(
                     val openMeteoForecast = openMeteoApi.getDailyForecast(
                         latitude = remote.coord.lat,
                         longitude = remote.coord.lon,
+                        forecastDays = 8,
                     )
                     val daily = openMeteoForecast.daily
                     val count = minOf(
                         daily.time.size,
                         daily.temperature_2m_min.size,
                         daily.temperature_2m_max.size,
-                        7,
+                        8,
                     )
-                    (0 until count).map { index ->
-                        val epochSeconds = LocalDate.parse(daily.time[index])
+                    (1 until count).take(7).mapIndexed { index, sourceIndex ->
+                        val epochSeconds = LocalDate.parse(daily.time[sourceIndex])
                             .atStartOfDay()
                             .toEpochSecond(ZoneOffset.UTC)
                         ForecastDayEntity(
                             cityQuery = query,
                             dayIndex = index,
                             dayEpochSeconds = epochSeconds,
-                            minTempCelsius = daily.temperature_2m_min[index],
-                            maxTempCelsius = daily.temperature_2m_max[index],
-                            weatherCode = daily.weather_code?.getOrNull(index),
+                            minTempCelsius = daily.temperature_2m_min[sourceIndex],
+                            maxTempCelsius = daily.temperature_2m_max[sourceIndex],
+                            weatherCode = daily.weather_code?.getOrNull(sourceIndex),
                         )
                     }
                 }
