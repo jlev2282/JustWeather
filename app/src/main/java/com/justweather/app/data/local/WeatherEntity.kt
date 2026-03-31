@@ -8,6 +8,8 @@ data class WeatherEntity(
     // Cache key is the user-selected location query.
     @PrimaryKey val cityQuery: String,
     val cityName: String,
+    val latitude: Double,
+    val longitude: Double,
     val tempCelsius: Double,
     val humidityPercent: Int,
     val windSpeedMetersPerSecond: Double,

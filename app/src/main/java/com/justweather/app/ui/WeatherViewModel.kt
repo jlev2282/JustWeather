@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.justweather.app.data.LocationSuggestion
+import com.justweather.app.data.SevereAlert
 import com.justweather.app.data.WeatherRepository
 import com.justweather.app.data.local.ForecastDayEntity
 import com.justweather.app.data.local.WeatherEntity
@@ -18,6 +19,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 
 class WeatherViewModel(
@@ -29,7 +32,11 @@ class WeatherViewModel(
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = UiSettings(locationDisplay = DEFAULT_LOCATION, useFahrenheit = false),
+            initialValue = UiSettings(
+                locationDisplay = DEFAULT_LOCATION,
+                useFahrenheit = false,
+                severeNotificationsEnabled = false,
+            ),
         )
 
     val weather: StateFlow<WeatherEntity?> = settingsDataStore.settingsFlow
@@ -60,6 +67,9 @@ class WeatherViewModel(
 
     private val _locationSuggestions = MutableStateFlow<List<LocationSuggestion>>(emptyList())
     val locationSuggestions: StateFlow<List<LocationSuggestion>> = _locationSuggestions.asStateFlow()
+
+    private val _severeAlertEvents = MutableSharedFlow<SevereAlert>(extraBufferCapacity = 1)
+    val severeAlertEvents = _severeAlertEvents.asSharedFlow()
 
     init {
         // Refresh on location changes. Switching units should not trigger network calls.
@@ -106,7 +116,25 @@ class WeatherViewModel(
             settingsDataStore.updateSettings(
                 locationDisplay = locationDisplay,
                 useFahrenheit = useFahrenheit,
+                severeNotificationsEnabled = settings.value.severeNotificationsEnabled,
             )
+        }
+    }
+
+    fun updateSettings(
+        locationDisplay: String,
+        useFahrenheit: Boolean,
+        severeNotificationsEnabled: Boolean,
+    ) {
+        viewModelScope.launch {
+            settingsDataStore.updateSettings(
+                locationDisplay = locationDisplay,
+                useFahrenheit = useFahrenheit,
+                severeNotificationsEnabled = severeNotificationsEnabled,
+            )
+            if (severeNotificationsEnabled) {
+                maybeTriggerSevereAlert(locationDisplay)
+            }
         }
     }
 
@@ -114,8 +142,16 @@ class WeatherViewModel(
         _isRefreshing.value = true
         try {
             repository.refreshWeather(cityQuery = cityQuery)
+            maybeTriggerSevereAlert(cityQuery)
         } finally {
             _isRefreshing.value = false
+        }
+    }
+
+    private suspend fun maybeTriggerSevereAlert(cityQuery: String) {
+        if (!settings.value.severeNotificationsEnabled) return
+        repository.checkSevereConditions(cityQuery)?.let { alert ->
+            _severeAlertEvents.tryEmit(alert)
         }
     }
 

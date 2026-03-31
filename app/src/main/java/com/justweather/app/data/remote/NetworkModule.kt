@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit
 object NetworkModule {
 
     private const val BASE_URL = "https://api.openweathermap.org/"
+    private const val OPEN_METEO_BASE_URL = "https://api.open-meteo.com/"
 
     private val moshi: Moshi by lazy {
         Moshi.Builder()
@@ -36,5 +37,14 @@ object NetworkModule {
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
             .create(OpenWeatherApi::class.java)
+    }
+
+    val openMeteoApi: OpenMeteoApi by lazy {
+        Retrofit.Builder()
+            .baseUrl(OPEN_METEO_BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(OpenMeteoApi::class.java)
     }
 }

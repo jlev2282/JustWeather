@@ -6,6 +6,7 @@ import com.justweather.app.data.local.WeatherDao
 import com.justweather.app.data.local.WeatherEntity
 import com.justweather.app.data.remote.GeoLocationResponse
 import com.justweather.app.data.remote.NetworkModule
+import com.justweather.app.data.remote.OpenMeteoApi
 import com.justweather.app.data.remote.OpenWeatherApi
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +16,7 @@ import kotlinx.coroutines.withContext
 class WeatherRepository(
     private val weatherDao: WeatherDao,
     private val api: OpenWeatherApi = NetworkModule.openWeatherApi,
+    private val openMeteoApi: OpenMeteoApi = NetworkModule.openMeteoApi,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
 
@@ -44,6 +46,8 @@ class WeatherRepository(
                     WeatherEntity(
                         cityQuery = query,
                         cityName = remote.name,
+                        latitude = remote.coord.lat,
+                        longitude = remote.coord.lon,
                         tempCelsius = remote.main.temp,
                         humidityPercent = remote.main.humidity,
                         windSpeedMetersPerSecond = remote.wind.speed,
@@ -68,6 +72,42 @@ class WeatherRepository(
                         )
                     }
                 weatherDao.replaceForecast(query, forecastRows)
+            }
+        }
+    }
+
+    suspend fun checkSevereConditions(cityQuery: String): SevereAlert? {
+        val query = cityQuery.trim()
+        if (query.isBlank()) return null
+        return withContext(ioDispatcher) {
+            val cached = weatherDao.getWeather(query) ?: return@withContext null
+            val current = runCatching {
+                openMeteoApi.getCurrentConditions(
+                    latitude = cached.latitude,
+                    longitude = cached.longitude,
+                ).current
+            }.getOrNull() ?: return@withContext null
+
+            when {
+                current.temperature_2m > 95.0 -> {
+                    SevereAlert(
+                        title = "Heat Advisory",
+                        message = "Current temperature is ${current.temperature_2m.toInt()}°F near ${cached.cityName}.",
+                    )
+                }
+                current.precipitation > 0.5 -> {
+                    SevereAlert(
+                        title = "Heavy Rain Warning",
+                        message = "Precipitation is ${String.format("%.2f", current.precipitation)} in/hr near ${cached.cityName}.",
+                    )
+                }
+                current.weather_code in THUNDERSTORM_CODES -> {
+                    SevereAlert(
+                        title = "Thunderstorm Alert",
+                        message = "Thunderstorm conditions detected near ${cached.cityName}.",
+                    )
+                }
+                else -> null
             }
         }
     }
@@ -99,5 +139,6 @@ class WeatherRepository(
 
     companion object {
         private const val DEFAULT_CITY = "London"
+        private val THUNDERSTORM_CODES = setOf(95, 96, 99)
     }
 }

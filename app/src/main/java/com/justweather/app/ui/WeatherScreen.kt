@@ -1,5 +1,10 @@
 package com.justweather.app.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,13 +30,17 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.flow.collect
 import com.justweather.app.data.LocationSuggestion
 import com.justweather.app.data.local.ForecastDayEntity
 import com.justweather.app.data.local.WeatherEntity
@@ -44,6 +53,7 @@ import java.time.format.FormatStyle
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WeatherRoute(viewModel: WeatherViewModel) {
+    val context = LocalContext.current
     val weather by viewModel.weather.collectAsStateWithLifecycle()
     val forecast by viewModel.forecast.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
@@ -51,6 +61,12 @@ fun WeatherRoute(viewModel: WeatherViewModel) {
     val locationInput by viewModel.locationInput.collectAsStateWithLifecycle()
     val suggestions by viewModel.locationSuggestions.collectAsStateWithLifecycle()
     val showSettings = remember { mutableStateOf(false) }
+
+    LaunchedEffect(viewModel) {
+        viewModel.severeAlertEvents.collect { alert ->
+            WeatherNotificationHelper.showSevereAlert(context, alert)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -93,10 +109,11 @@ fun WeatherRoute(viewModel: WeatherViewModel) {
                     onLocationInputChanged = viewModel::onLocationInputChanged,
                     onSelectSuggestion = viewModel::selectSuggestedLocation,
                     onDismiss = dismissDialog,
-                    onSave = { locationDisplay, useFahrenheit ->
+                    onSave = { locationDisplay, useFahrenheit, severeEnabled ->
                         viewModel.updateSettings(
                             locationDisplay = locationDisplay,
                             useFahrenheit = useFahrenheit,
+                            severeNotificationsEnabled = severeEnabled,
                         )
                         showSettings.value = false
                     },
@@ -232,9 +249,18 @@ private fun SettingsDialog(
     onLocationInputChanged: (String) -> Unit,
     onSelectSuggestion: (LocationSuggestion) -> Unit,
     onDismiss: () -> Unit,
-    onSave: (locationDisplay: String, useFahrenheit: Boolean) -> Unit,
+    onSave: (locationDisplay: String, useFahrenheit: Boolean, severeNotificationsEnabled: Boolean) -> Unit,
 ) {
+    val context = LocalContext.current
     val useFahrenheit = remember(current.useFahrenheit) { mutableStateOf(current.useFahrenheit) }
+    val severeNotificationsEnabled = remember(current.severeNotificationsEnabled) {
+        mutableStateOf(current.severeNotificationsEnabled)
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        severeNotificationsEnabled.value = granted
+    }
     val canSave = locationInput.trim().isNotBlank()
 
     AlertDialog(
@@ -268,13 +294,42 @@ private fun SettingsDialog(
                         onCheckedChange = { useFahrenheit.value = it },
                     )
                 }
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Severe Weather Notifications")
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Switch(
+                        checked = severeNotificationsEnabled.value,
+                        onCheckedChange = { enabled ->
+                            if (!enabled) {
+                                severeNotificationsEnabled.value = false
+                            } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                                severeNotificationsEnabled.value = true
+                            } else {
+                                val granted = ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.POST_NOTIFICATIONS,
+                                ) == PackageManager.PERMISSION_GRANTED
+                                if (granted) {
+                                    severeNotificationsEnabled.value = true
+                                } else {
+                                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                            }
+                        },
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(
                 enabled = canSave,
                 onClick = {
-                    onSave(locationInput.trim(), useFahrenheit.value)
+                    onSave(
+                        locationInput.trim(),
+                        useFahrenheit.value,
+                        severeNotificationsEnabled.value,
+                    )
                 },
             ) {
                 Text("Save")

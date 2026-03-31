@@ -14,6 +14,9 @@ interface WeatherDao {
     @Query("SELECT * FROM weather_cache WHERE cityQuery = :cityQuery LIMIT 1")
     fun observeWeather(cityQuery: String): Flow<WeatherEntity?>
 
+    @Query("SELECT * FROM weather_cache WHERE cityQuery = :cityQuery LIMIT 1")
+    suspend fun getWeather(cityQuery: String): WeatherEntity?
+
     @Upsert
     suspend fun upsert(entity: WeatherEntity)
 
